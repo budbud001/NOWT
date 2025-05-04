@@ -157,7 +157,7 @@
 			<ItemsControl ItemsSource="{Binding LeftPlayerList}" Margin="5">
 				<ItemsControl.ItemsPanel>
 					<ItemsPanelTemplate>
-						<UniformGrid Columns="1" Margin="5" />
+						<UniformGrid Columns="1" Margin="5" Background="#4A90E2" />
 					</ItemsPanelTemplate>
 				</ItemsControl.ItemsPanel>
 				<ItemsControl.ItemTemplate>
@@ -170,14 +170,19 @@
 			</ItemsControl>
 
 			<StackPanel Grid.Column="1" Orientation="Horizontal">
-				<Separator Width="4" Margin="6 20 6 30"
-				           Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Background="#181E34"
-				           BorderThickness="0" />
+				<Grid Width="8" Margin="6 20 6 30">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+					<Border Grid.Column="0" Background="#4A90E2" BorderThickness="0"/>
+					<Border Grid.Column="1" Background="#E24A4A" BorderThickness="0"/>
+				</Grid>
 			</StackPanel>
 			<ItemsControl Grid.Column="2" ItemsSource="{Binding RightPlayerList}" Margin="5">
 				<ItemsControl.ItemsPanel>
 					<ItemsPanelTemplate>
-						<UniformGrid Columns="1" Margin="5" />
+						<UniformGrid Columns="1" Margin="5" Background="#E24A4A" />
 					</ItemsPanelTemplate>
 				</ItemsControl.ItemsPanel>
 				<ItemsControl.ItemTemplate>

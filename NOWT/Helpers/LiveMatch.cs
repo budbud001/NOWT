@@ -168,7 +168,8 @@ public class LiveMatch
         RiotPrePlayer riotPlayer,
         sbyte index,
         Guid[] seasonData,
-        PresencesResponse presencesResponse
+        PresencesResponse presencesResponse,
+        PreMatchResponse matchInfo
     )
     {
         Player player = new();
@@ -192,7 +193,18 @@ public class LiveMatch
             player.AccountLevel = !riotPlayer.PlayerIdentity.HideAccountLevel
                 ? riotPlayer.PlayerIdentity.AccountLevel.ToString()
                 : "-";
-            player.TeamId = "Blue";
+            
+            // Set team ID based on Team1 property and player's team
+            if (matchInfo.Team1 == matchInfo.AllyTeam.TeamId)
+            {
+                // Your team is Team1, so you're on the left (Blue/Defenders)
+                player.TeamId = "Blue";
+            }
+            else
+            {
+                // Your team is not Team1, so you're on the right (Red/Attackers)
+                player.TeamId = "Red";
+            }
             player.Active = Visibility.Visible;
         }
         catch (Exception e)
@@ -260,10 +272,27 @@ public class LiveMatch
         await Task.WhenAll(sTask, pTask).ConfigureAwait(false);
         sbyte index = 0;
 
+        // First add your team's players
         foreach (var riotPlayer in matchIdInfo.AllyTeam.Players)
         {
-            playerTasks.Add(GetPrePlayerInfo(riotPlayer, index, seasonData, presencesResponse));
+            playerTasks.Add(GetPrePlayerInfo(riotPlayer, index, seasonData, presencesResponse, matchIdInfo));
             index++;
+        }
+
+        // Then add enemy team's players with opposite team ID
+        if (matchIdInfo.Teams != null)
+        {
+            foreach (var team in matchIdInfo.Teams)
+            {
+                if (team.TeamId != matchIdInfo.AllyTeam.TeamId)
+                {
+                    foreach (var riotPlayer in team.Players)
+                    {
+                        playerTasks.Add(GetPrePlayerInfo(riotPlayer, index, seasonData, presencesResponse, matchIdInfo));
+                        index++;
+                    }
+                }
+            }
         }
     }
 
@@ -422,7 +451,7 @@ public class LiveMatch
         player.RankData = playerTask.Result;
         player.PlayerUiData = new PlayerUIData
         {
-            BackgroundColour = "#252A40",
+            BackgroundColour = "#FFD700",
             PartyUuid = Partyid,
             PartyColour = "Transparent",
             Puuid = riotPlayer.PlayerIdentity.Subject
@@ -474,12 +503,6 @@ public class LiveMatch
         IgnData ignData = new();
         ignData.TrackerEnabled = Visibility.Hidden;
         ignData.TrackerDisabled = Visibility.Visible;
-
-        if (isIncognito && !inParty)
-        {
-            ignData.Username = "----";
-            return ignData;
-        }
 
         ignData.Username = await GetNameServiceGetUsernameAsync(puuid).ConfigureAwait(false);
 
@@ -921,8 +944,8 @@ public class LiveMatch
         MatchHistoryData history =
             new()
             {
-                PreviousGameColours = new string[3] { "#7f7f7f", "#7f7f7f", "#7f7f7f" },
-                PreviousGames = new int[3]
+                PreviousGameColours = new string[10] { "#7f7f7f", "#7f7f7f", "#7f7f7f", "#7f7f7f", "#7f7f7f", "#7f7f7f", "#7f7f7f", "#7f7f7f", "#7f7f7f", "#7f7f7f" },
+                PreviousGames = new int[10]
             };
 
         try
@@ -963,7 +986,7 @@ public class LiveMatch
 
             history.RankProgress = content.Matches[0].RankedRatingAfterUpdate;
 
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 10; i++)
             {
                 if (i > content.Matches.Length)
                     break;
@@ -1161,23 +1184,8 @@ public class LiveMatch
             return null;
         try
         {
-            var encodedUsername = Uri.EscapeDataString(username);
-            var url = new Uri(
-                "https://api.tracker.network/api/v2/valorant/standard/profile/riot/"
-                    + encodedUsername
-            );
-            var response = await DoCachedRequestAsync(
-                    Method.Get,
-                    url.ToString(),
-                    false,
-                    false,
-                    false,
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36 OverwolfClient/0.190.0.13"
-                )
-                .ConfigureAwait(false);
-            var numericStatusCode = (short)response.StatusCode;
-            if (numericStatusCode == 200)
-                return new Uri("https://tracker.gg/valorant/profile/riot/" + encodedUsername);
+            var encodedUsername = username.Replace("#", "%23");
+            return new Uri("https://tracker.gg/valorant/profile/riot/" + encodedUsername + "/overview");
         }
         catch (Exception e)
         {
@@ -1243,6 +1251,21 @@ public class LiveMatch
                 return playerUiData;
 
             playerUiData.PartyUuid = content.PartyId;
+            
+            // Set party color based on party ID
+            if (content.PartyId != Guid.Empty)
+            {
+                // Generate a consistent color based on the party ID
+                var hash = content.PartyId.GetHashCode();
+                var r = (hash & 0xFF0000) >> 16;
+                var g = (hash & 0x00FF00) >> 8;
+                var b = hash & 0x0000FF;
+                playerUiData.PartyColour = $"#{r:X2}{g:X2}{b:X2}";
+            }
+            else
+            {
+                playerUiData.PartyColour = "Transparent";
+            }
 
             if (puuid != Constants.Ppuuid)
                 return playerUiData;
@@ -1257,7 +1280,7 @@ public class LiveMatch
             MatchInfo.MapImage = new Uri(
                 Constants.LocalAppDataPath + $"\\ValAPI\\mapsimg\\{map.UUID}.png"
             );
-            playerUiData.BackgroundColour = "#181E34";
+            playerUiData.BackgroundColour = "#FFD700";
             Constants.PPartyId = content.PartyId;
 
             if (content?.ProvisioningFlow == "CustomGame")
